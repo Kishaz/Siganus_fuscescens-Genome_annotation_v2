@@ -1,0 +1,20 @@
+# This repository is executed on Linux clusters. A CRLF line ending in a shell
+# script makes the shebang `#!/usr/bin/env bash\r`, which fails with an
+# obscure "bad interpreter" error. Force LF for everything textual, regardless
+# of the platform the repo is cloned or edited on.
+* text=auto eol=lf
+
+*.sh      text eol=lf
+*.sbatch  text eol=lf
+*.py      text eol=lf
+*.yaml    text eol=lf
+*.yml     text eol=lf
+*.tsv     text eol=lf
+*.cff     text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+config.sh text eol=lf
+
+*.gz   binary
+*.sif  binary
+*.h5   binary

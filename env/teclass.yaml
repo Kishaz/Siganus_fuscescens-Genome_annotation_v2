@@ -1,0 +1,9 @@
+name: teclass
+# Only needed for REPEAT_METHOD=manual; EarlGrey classifies internally.
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.9
+  - tesorter
+  - hmmer
+  - diamond
+  - seqkit

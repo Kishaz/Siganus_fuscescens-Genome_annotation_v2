@@ -1,0 +1,12 @@
+   SW   perc perc perc  query      position in query            matching       repeat              position in repeat
+score   div. del. ins.  sequence    begin     end    (left)     repeat         class/family      begin   end  (left)   ID
+
+  283   25.0  2.1  1.4  BAAFLC010000001.1    1000    1200 (17651655) +  rnd-1_family-3  LINE/L2              120    320  (450)     1
+ 1523    8.3  0.0  0.0  BAAFLC010000001.1    5000    5500 (17347355) C  rnd-1_family-7  LTR/Gypsy           (100)   600    100     2
+  412   31.7  0.0  0.0  BAAFLC010000001.1    9000    9120 (17643735) +  (TA)n           Simple_repeat          1    121    (0)     3 *
+  900   12.0  1.0  0.5  BAAFLC010000002.1     200     900 (16604518) C  rnd-5_family-99 Unknown             (12)    700      1     4
+
+   SW   perc perc perc  query      position in query            matching       repeat              position in repeat
+score   div. del. ins.  sequence    begin     end    (left)     repeat         class/family      begin   end  (left)   ID
+
+ 2100    5.5  0.0  0.0  BAAFLC010000002.1    3000    4000 (16601418) +  DNA-8-13_SF     DNA/hAT-Charlie       10   1010   (25)     5

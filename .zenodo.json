@@ -1,0 +1,18 @@
+{
+  "title": "Siganus fuscescens genome annotation v2 (Sfus_1.0 / GCA_042847805.1)",
+  "upload_type": "dataset",
+  "license": "cc-by-4.0",
+  "creators": [
+    { "name": "Mwamburi, Samuel M." }
+  ],
+  "description": "Structural and functional annotation of the Siganus fuscescens reference assembly GCA_042847805.1 (Sfus_1.0), the first genome published for the family Siganidae. Includes GFF3 and GTF gene models, protein/CDS/transcript FASTA, classified repeat and non-coding RNA annotation, functional annotation (InterPro, GO, KEGG, Swiss-Prot), and per-model evidence support. Built with BRAKER3 (RNA-seq + protein evidence), Helixer, and a Liftoff transfer from Siganus canaliculatus, consolidated with TSEBRA.",
+  "keywords": [
+    "genome annotation", "Siganus fuscescens", "Siganidae", "rabbitfish",
+    "teleost", "aquaculture", "GFF3", "GTF"
+  ],
+  "related_identifiers": [
+    { "identifier": "10.1007/s10126-024-10325-9", "relation": "isSupplementTo", "scheme": "doi" },
+    { "identifier": "GCA_042847805.1", "relation": "isDerivedFrom", "scheme": "other" },
+    { "identifier": "PRJDB15411", "relation": "isDerivedFrom", "scheme": "other" }
+  ]
+}

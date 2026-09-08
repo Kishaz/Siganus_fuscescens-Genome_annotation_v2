@@ -1,0 +1,11 @@
+name: prep
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.12
+  - seqkit>=2.13
+  - samtools>=1.24
+  - bedtools>=2.31
+  - csvtk
+  - pigz
+  - curl
+  - ncbi-datasets-cli

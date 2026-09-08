@@ -1,0 +1,12 @@
+name: func
+# InterProScan is NOT taken from bioconda - that build is pinned to 5.59_91.0
+# (2022) and its member databases are years stale. Stage 12 installs the
+# current release straight from EBI instead.
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.12
+  - eggnog-mapper>=2.1.15
+  - diamond>=2.2.6
+  - hmmer
+  - biopython
+  - pandas

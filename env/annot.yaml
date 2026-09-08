@@ -1,0 +1,18 @@
+name: annot
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.12
+  - agat>=1.7.0
+  - gffread
+  - gffcompare
+  - miniprot>=0.18
+  - diamond>=2.2.6
+  - liftoff>=1.6.3
+  - tsebra>=1.1.2.5
+  - seqkit
+  - bedtools
+  - samtools
+  - minimap2
+  - genometools-genometools
+  - biopython
+  - pandas

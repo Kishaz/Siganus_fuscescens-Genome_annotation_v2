@@ -1,0 +1,13 @@
+name: repeats
+# EarlGrey 7.3.1 wraps RepeatModeler2, BLAST-extend-extend curation, TE
+# classification and landscape plotting. It pulls RepeatMasker/RepeatModeler in
+# as dependencies, so the manual fallback route works from this env too.
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.10
+  - earlgrey>=7.3.1
+  - repeatmodeler>=2.0.9
+  - repeatmasker>=4.1.7
+  - trf
+  - seqkit
+  - h5py

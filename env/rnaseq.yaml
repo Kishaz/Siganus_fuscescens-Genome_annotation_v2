@@ -1,0 +1,12 @@
+name: rnaseq
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.12
+  - sra-tools>=3.2
+  - fastp>=0.24
+  - hisat2>=2.2.3
+  - samtools>=1.24
+  - stringtie>=3.0.3
+  - fastqc
+  - multiqc
+  - pigz

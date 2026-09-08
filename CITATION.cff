@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+message: "If you use this annotation or pipeline, please cite the genome paper below."
+title: "Siganus fuscescens genome annotation v2"
+abstract: >-
+  Reproducible structural and functional re-annotation of the Siganus fuscescens
+  reference assembly GCA_042847805.1 (Sfus_1.0). Combines evidence-based gene
+  prediction (BRAKER3 with RNA-seq and protein hints) with an independent
+  deep-learning prediction (Helixer) and a congener annotation transfer
+  (Liftoff), consolidated with TSEBRA and filtered on four independent evidence
+  axes. Adds repeat, non-coding RNA and functional annotation absent from the
+  2024 release.
+type: software
+authors:
+  - family-names: Mwamburi
+    given-names: Samuel M.
+    email: mwakishasam@gmail.com
+repository-code: "https://github.com/Kishaz/Siganus_fuscescens-Genome_annotation_v2"
+license: MIT
+keywords:
+  - genome annotation
+  - Siganus fuscescens
+  - Siganidae
+  - rabbitfish
+  - BRAKER3
+  - Helixer
+references:
+  - type: article
+    title: >-
+      De Novo Assembly and Annotation of the Siganus fuscescens (Houttuyn, 1782)
+      Genome: Marking a Pioneering Advance for the Siganidae Family
+    doi: 10.1007/s10126-024-10325-9
+    journal: Marine Biotechnology
+    year: 2024
+    authors:
+      - family-names: Mwamburi
+        given-names: Samuel M.
+      - family-names: Kawato
+        given-names: S.
+      - family-names: Furukawa
+        given-names: M.
+      - family-names: Konishi
+        given-names: K.
+      - family-names: Nozaki
+        given-names: R.
+      - family-names: Hirono
+        given-names: I.
+      - family-names: Kondo
+        given-names: H.

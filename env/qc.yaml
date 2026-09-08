@@ -1,0 +1,15 @@
+name: qc
+# compleasm is a miniprot-based reimplementation of BUSCO: same lineages,
+# markedly faster and less prone to the fragmentation artefacts BUSCO's
+# metaeuk/augustus path shows on protein input. Both are run; BUSCO stays
+# because the 2024 paper reported BUSCO and the numbers must be comparable.
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.11
+  - busco>=6.1.0
+  - compleasm>=0.2.9
+  - omark>=0.5.0
+  - genometools-genometools
+  - seqkit
+  - pandas
+  - matplotlib-base

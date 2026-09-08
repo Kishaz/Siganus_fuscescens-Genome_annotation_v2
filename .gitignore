@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+work/
+db/
+release/
+staged/
+containers/
+micromamba/
+logs/*
+!logs/.gitkeep
+docs/provenance/*.lock.txt
+docs/provenance/*.versions.txt
+docs/provenance/containers.tsv
+*.tar.gz
+*.sif
+.DS_Store
