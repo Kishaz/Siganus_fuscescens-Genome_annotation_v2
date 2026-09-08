@@ -46,9 +46,13 @@ fi
 
 # ---- Swiss-Prot best hits (gene symbols and product names) ------------------
 if [ ! -s swissprot.tsv ]; then
-  [ -s "$DB/uniprot_sprot.fasta.gz" ] || curl -fsSL \
-    "https://ftp.ebi.ac.uk/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz" \
-    -o "$DB/uniprot_sprot.fasta.gz" || true
+  # No download here: compute nodes cannot reach ftp.ebi.ac.uk / NCBI on this
+  # cluster. Stage 03 stages Swiss-Prot on the login node.
+  if [ ! -s "$DB/uniprot_sprot.fasta.gz" ]; then
+    echo "WARNING: $DB/uniprot_sprot.fasta.gz not staged - gene symbols and" >&2
+    echo "         product names will fall back to eggNOG/InterPro only." >&2
+    echo "         Run scripts/03_fetch_evidence.sh on the login node." >&2
+  fi
   if [ -s "$DB/uniprot_sprot.fasta.gz" ]; then
     [ -s sprot.dmnd ] || zcat "$DB/uniprot_sprot.fasta.gz" | mm func diamond makedb --in - -d sprot -p "$T"
     mm func diamond blastp -q proteins.clean.faa -d sprot -p "$T" \

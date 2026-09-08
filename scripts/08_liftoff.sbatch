@@ -23,24 +23,20 @@ GM="$WORK/repeats/final/genome.softmasked.fna"; need "$GM"
 T="${SLURM_CPUS_PER_TASK:-32}"
 L="$WORK/liftoff"; mkdir -p "$L"; cd "$L"
 
-# ---- fetch the reference genome + annotation --------------------------------
-ACC="$LIFTOFF_REF_ACC"
-if [ ! -s ref.fna ] || [ ! -s ref.gff ]; then
-  echo "[08] fetching $ACC via NCBI datasets"
-  mm prep datasets download genome accession "$ACC" \
-     --include genome,gff3 --filename ref.zip
-  mm prep unzip -o -q ref.zip -d refdl || unzip -o -q ref.zip -d refdl
-  find refdl -name '*_genomic.fna' -exec cp {} ref.fna \;
-  find refdl -name 'genomic.gff'   -exec cp {} ref.gff \;
-fi
-
-if [ ! -s ref.fna ] || [ ! -s ref.gff ]; then
-  echo "[08] WARNING: could not obtain $ACC annotation - skipping Liftoff." >&2
-  echo "     Stage 10 will simply score without this axis." >&2
+# ---- reference genome + annotation ------------------------------------------
+# NOT downloaded here. Compute nodes on this cluster cannot reach
+# ftp.ncbi.nlm.nih.gov, so stage 03 stages the reference on the login node.
+LR="$DB/liftoff_ref"
+if [ ! -s "$LR/ref.fna" ] || [ ! -s "$LR/ref.gff" ]; then
+  echo "[08] WARNING: $LIFTOFF_REF_ACC not staged in $LR - skipping Liftoff." >&2
+  echo "     Run scripts/03_fetch_evidence.sh on the login node first." >&2
+  echo "     Stage 10 will score without the congener axis." >&2
   : > "$L/liftoff.gff3"
   done_stamp 08_liftoff
   exit 0
 fi
+ln -sf "$LR/ref.fna" ref.fna
+ln -sf "$LR/ref.gff" ref.gff
 echo "[08] reference: $(awk -F'\t' '$3=="gene"' ref.gff | wc -l) genes"
 
 # ---- lift -------------------------------------------------------------------

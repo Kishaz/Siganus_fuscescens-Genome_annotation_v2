@@ -53,11 +53,83 @@ if [ "${ORTHODB_CLADE_TAXID:-0}" != "0" ]; then
   [ -s "$TX/nodes.dmp" ] || tar xzf "$TX/taxdump.tar.gz" -C "$TX" nodes.dmp names.dmp
 fi
 
+# ---- 4c. Liftoff reference genome + annotation ------------------------------
+# Fetched here rather than in stage 08. Compute nodes on this cluster cannot
+# reach ftp.ncbi.nlm.nih.gov (conda.anaconda.org resolves, NCBI does not), so
+# any NCBI download from inside a job fails. Everything network-bound lives on
+# the login node.
+LR="$DB/liftoff_ref"; mkdir -p "$LR"
+if [ ! -s "$LR/ref.fna" ] || [ ! -s "$LR/ref.gff" ]; then
+  echo "[03] fetching Liftoff reference $LIFTOFF_REF_ACC"
+  ( cd "$LR"
+    mm prep datasets download genome accession "$LIFTOFF_REF_ACC" \
+       --include genome,gff3 --filename ref.zip
+    ( unzip -o -q ref.zip -d refdl || mm prep unzip -o -q ref.zip -d refdl )
+    find refdl -name '*_genomic.fna' -exec cp {} ref.fna \;
+    find refdl -name 'genomic.gff'   -exec cp {} ref.gff \; )
+fi
+[ -s "$LR/ref.gff" ] && echo "[03] Liftoff reference: $(awk -F'\t' '$3=="gene"' "$LR/ref.gff" | wc -l) genes"
+
+# ---- 4d. Swiss-Prot (stage 12 runs on a compute node and cannot fetch it) ---
+get "https://ftp.ebi.ac.uk/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz" \
+    "$DB/uniprot_sprot.fasta.gz" || \
+  echo "[03] WARNING: Swiss-Prot unavailable - stage 12 will skip gene-symbol assignment" >&2
+
 # ---- 5. Rfam, BUSCO lineage -------------------------------------------------
 mkdir -p "$DB/rfam" "$DB/busco"
 get "https://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz"     "$DB/rfam/Rfam.cm.gz"
 get "https://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.clanin"    "$DB/rfam/Rfam.clanin"
 [ -s "$DB/rfam/Rfam.cm" ] || gzip -dk "$DB/rfam/Rfam.cm.gz"
 
+# ---- 6. InterProScan (~50 GB) ----------------------------------------------
+# The bioconda build is pinned to 5.59_91.0 (2022) with correspondingly stale
+# member databases, so the current release comes straight from EBI. Login node
+# only - stage 12 runs on a compute node and cannot reach ftp.ebi.ac.uk.
+if [ "${SKIP_INTERPROSCAN:-0}" != "1" ] && [ -z "$(ls -d "$DB"/interproscan-* 2>/dev/null)" ]; then
+  IPR_VER="$(curl -fsSL --max-time 30 https://ftp.ebi.ac.uk/pub/software/unix/iprscan/5/ 2>/dev/null \
+             | grep -oE '5\.[0-9]+-[0-9]+\.0' | sort -uV | tail -1)"
+  if [ -n "$IPR_VER" ]; then
+    echo "[03] InterProScan $IPR_VER (~50 GB - this takes a while)"
+    B="https://ftp.ebi.ac.uk/pub/software/unix/iprscan/5/${IPR_VER}"
+    get "$B/interproscan-${IPR_VER}-64-bit.tar.gz"     "$DB/interproscan.tar.gz"
+    get "$B/interproscan-${IPR_VER}-64-bit.tar.gz.md5" "$DB/interproscan.tar.gz.md5"
+    ( cd "$DB"
+      if [ -s interproscan.tar.gz.md5 ]; then
+        want=$(awk '{print $1}' interproscan.tar.gz.md5)
+        got=$(md5sum interproscan.tar.gz | awk '{print $1}')
+        [ "$want" = "$got" ] || { echo "[03] FATAL: InterProScan md5 mismatch" >&2; exit 1; }
+        echo "[03] InterProScan md5 OK"
+      fi
+      tar -xzf interproscan.tar.gz
+      cd "interproscan-${IPR_VER}" && python3 setup.py -f interproscan.properties ) \
+      || echo "[03] WARNING: InterProScan setup failed - stage 12 will skip domains" >&2
+  else
+    echo "[03] WARNING: could not reach EBI to resolve an InterProScan version" >&2
+  fi
+fi
+
+# ---- 7. eggNOG database (~50 GB) -------------------------------------------
+if [ "${SKIP_EGGNOG:-0}" != "1" ] && [ ! -s "$DB/eggnog/eggnog.db" ]; then
+  mkdir -p "$DB/eggnog"
+  echo "[03] eggNOG database (~50 GB)"
+  mm func download_eggnog_data.py -y --data_dir "$DB/eggnog" \
+    || echo "[03] WARNING: eggNOG download failed - stage 12 will skip GO/KEGG" >&2
+fi
+
 echo "[03] evidence summary"; du -sh "$DB"/* "$WORK/rnaseq/raw" 2>/dev/null
+echo
+echo "[03] readiness for the compute stages:"
+chk() { printf '  %-34s %s\n' "$1" "$([ -e "$2" ] && echo present || echo MISSING)"; }
+chk "OrthoDB Vertebrata"        "$DB/Vertebrata.fa.gz"
+chk "NCBI taxonomy (clade cut)" "$DB/taxonomy/nodes.dmp"
+chk "Dfam ${DFAM_RELEASE}"      "$DB/dfam/dfam40.0.h5"
+chk "Rfam covariance models"    "$DB/rfam/Rfam.cm"
+chk "Liftoff reference"         "$DB/liftoff_ref/ref.gff"
+chk "Swiss-Prot"                "$DB/uniprot_sprot.fasta.gz"
+chk "eggNOG database"           "$DB/eggnog/eggnog.db"
+chk "RNA-seq reads"             "$WORK/rnaseq/raw"
+ls -d "$DB"/interproscan-* >/dev/null 2>&1 \
+  && echo "  InterProScan                       present" \
+  || echo "  InterProScan                       MISSING"
+
 done_stamp 03_fetch_evidence
