@@ -140,22 +140,56 @@ export MEM_BIG="${MEM_BIG:-400G}"
 export TIME_LONG="${TIME_LONG:-7-00:00:00}"
 
 # --- Helpers ----------------------------------------------------------------
+# Keep conda's package cache off /home. The site default is ~/.conda/pkgs, and
+# on this cluster /home is a 98 GB volume with ~18 GB free - eight environments
+# of bioinformatics packages will exhaust it and the failure mode is confusing.
+export CONDA_PKGS_DIRS="${CONDA_PKGS_DIRS:-$SCRATCH/conda_pkgs}"
+export MAMBA_PKGS_DIRS="$CONDA_PKGS_DIRS"
+mkdir -p "$CONDA_PKGS_DIRS" 2>/dev/null || true
+
+# conda_sh - locate the profile script that makes `conda activate` work in a
+# non-interactive shell. `conda activate` fails without it, which is why
+# `source activate` is often the only thing that works on a site install.
+conda_sh() {
+  local base
+  base="$(conda info --base 2>/dev/null)" || return 1
+  [ -s "$base/etc/profile.d/conda.sh" ] && { echo "$base/etc/profile.d/conda.sh"; return 0; }
+  return 1
+}
+
 # mm <env> <cmd...> - run a command inside a pipeline environment.
 #
 # Backend-agnostic on purpose. micro.mamba.pm is blocked by some site proxies
-# (DISCOVERY returns 403 after CONNECT), so micromamba cannot be assumed to be
-# installable. Falls back to a site conda/mamba. Both back ends put envs at
-# $MAMBA_ROOT_PREFIX/envs/<name>, so the layout is identical either way.
+# (DISCOVERY returns 403 after CONNECT), so micromamba cannot be assumed
+# installable. Both back ends place envs at $MAMBA_ROOT_PREFIX/envs/<name>, so
+# the layout is identical either way.
 mm() {
   local env="$1"; shift
+  local envdir="$MAMBA_ROOT_PREFIX/envs/$env"
+
   if [ -x "$MICROMAMBA_BIN" ]; then
     "$MICROMAMBA_BIN" run -r "$MAMBA_ROOT_PREFIX" -n "$env" "$@"
-  elif command -v conda >/dev/null 2>&1; then
-    conda run -p "$MAMBA_ROOT_PREFIX/envs/$env" --no-capture-output "$@"
-  else
-    echo "FATAL: no conda backend available for env '$env'." >&2
-    echo "       Stage micromamba into \$STAGED or module-load a conda." >&2
+    return $?
+  fi
+
+  if ! command -v conda >/dev/null 2>&1; then
+    echo "FATAL: no backend for env '$env'. Stage micromamba into \$STAGED," >&2
+    echo "       or: module load shared anaconda3/2023.09" >&2
     return 1
+  fi
+
+  # `conda run` is cleanest but is fragile on older conda (23.x hits plugin and
+  # locking bugs under load). Fall back to activating in a subshell, which is
+  # what `source activate` does and is the reliable path on this site install.
+  if conda run -p "$envdir" --no-capture-output true >/dev/null 2>&1; then
+    conda run -p "$envdir" --no-capture-output "$@"
+  else
+    local csh; csh="$(conda_sh || true)"
+    if [ -n "$csh" ]; then
+      ( set +u; . "$csh"; conda activate "$envdir" || return 1; exec "$@" )
+    else
+      ( set +u; . activate "$envdir" 2>/dev/null || return 1; exec "$@" )
+    fi
   fi
 }
 need() { for f in "$@"; do [ -s "$f" ] || { echo "MISSING INPUT: $f" >&2; exit 1; }; done; }

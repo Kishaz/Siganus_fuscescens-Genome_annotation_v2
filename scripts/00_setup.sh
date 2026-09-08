@@ -79,12 +79,20 @@ for y in env/*.yaml; do
   else
     # conda refuses a yaml carrying `name:` when -p is given, so strip it.
     tmpy="$(mktemp)"; grep -v '^name:' "$y" > "$tmpy"
+    # `conda env create` is the documented route but 23.x is prone to plugin
+    # errors on some site installs; `conda create` with an explicit package
+    # list is the blunter, more reliable fallback. Channels come from the
+    # yaml/CLI only - this site already has conda-forge + bioconda configured
+    # and no `defaults`, so no --override-channels is needed.
     "$SOLVER" env create -q -p "$envdir" -f "$tmpy" \
-      || "$SOLVER" create -y -q -p "$envdir" --override-channels \
+      || CONDA_NO_PLUGINS=true "$SOLVER" env create -q -p "$envdir" -f "$tmpy" \
+      || CONDA_NO_PLUGINS=true "$SOLVER" create -y -q -p "$envdir" \
            -c conda-forge -c bioconda \
-           $(awk '/^dependencies:/{f=1;next} f&&/^ *- /{sub(/^ *- /,"");printf "%s ",$0}' "$y")
+           $(awk '/^dependencies:/{f=1;next} f&&/^ *- /{sub(/^ *- /,"");printf "%s ",$0}' "$y") \
+      || { echo "[00] FAILED to create env '$n' - see the error above" >&2; rm -f "$tmpy"; continue; }
     rm -f "$tmpy"
   fi
+  [ -d "$envdir" ] && echo "[00]   -> $envdir"
 done
 
 # ---- freeze exact solved versions ------------------------------------------
