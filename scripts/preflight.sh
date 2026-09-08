@@ -54,14 +54,19 @@ for d in "$SCRATCH" "$PROJ"; do
 done
 
 hr "Software"
-[ -x "$MICROMAMBA_BIN" ] && ok "micromamba" "$($MICROMAMBA_BIN --version 2>/dev/null)" \
-                         || bad "micromamba" "missing - run scripts/00_setup.sh"
+if [ -x "$MICROMAMBA_BIN" ]; then
+  ok "package backend" "micromamba $("$MICROMAMBA_BIN" --version 2>/dev/null)"
+elif command -v conda >/dev/null 2>&1; then
+  ok "package backend" "site conda ($(command -v conda))"
+elif [ -x "$STAGED/micromamba" ]; then
+  warn "package backend" "micromamba staged but not installed - run 00_setup.sh"
+else
+  bad "package backend" "no micromamba and no conda; try: module load shared anaconda3"
+fi
+# Both back ends place envs at $MAMBA_ROOT_PREFIX/envs/<name>, so one test serves.
 for e in prep repeats rnaseq annot ncrna func qc; do
-  if "$MICROMAMBA_BIN" env list -r "$MAMBA_ROOT_PREFIX" 2>/dev/null | awk '{print $1}' | grep -qx "$e"; then
-    ok "env $e"
-  else
-    bad "env $e" "missing - run scripts/00_setup.sh"
-  fi
+  if [ -d "$MAMBA_ROOT_PREFIX/envs/$e" ]; then ok "env $e"
+  else bad "env $e" "missing - run scripts/00_setup.sh"; fi
 done
 if command -v "$CONTAINER_CMD" >/dev/null; then ok "$CONTAINER_CMD"; else bad "$CONTAINER_CMD" "needed for BRAKER3/Helixer"; fi
 [ -s "$SIF_DIR/braker3.sif" ] && ok "braker3.sif" "$(du -h "$SIF_DIR/braker3.sif" | cut -f1)" \

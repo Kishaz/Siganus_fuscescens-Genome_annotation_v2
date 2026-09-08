@@ -140,8 +140,23 @@ export MEM_BIG="${MEM_BIG:-400G}"
 export TIME_LONG="${TIME_LONG:-7-00:00:00}"
 
 # --- Helpers ----------------------------------------------------------------
-mm() {  # run a command inside a micromamba env:  mm <env> <cmd...>
-  "$MICROMAMBA_BIN" run -r "$MAMBA_ROOT_PREFIX" -n "$1" "${@:2}"
+# mm <env> <cmd...> - run a command inside a pipeline environment.
+#
+# Backend-agnostic on purpose. micro.mamba.pm is blocked by some site proxies
+# (DISCOVERY returns 403 after CONNECT), so micromamba cannot be assumed to be
+# installable. Falls back to a site conda/mamba. Both back ends put envs at
+# $MAMBA_ROOT_PREFIX/envs/<name>, so the layout is identical either way.
+mm() {
+  local env="$1"; shift
+  if [ -x "$MICROMAMBA_BIN" ]; then
+    "$MICROMAMBA_BIN" run -r "$MAMBA_ROOT_PREFIX" -n "$env" "$@"
+  elif command -v conda >/dev/null 2>&1; then
+    conda run -p "$MAMBA_ROOT_PREFIX/envs/$env" --no-capture-output "$@"
+  else
+    echo "FATAL: no conda backend available for env '$env'." >&2
+    echo "       Stage micromamba into \$STAGED or module-load a conda." >&2
+    return 1
+  fi
 }
 need() { for f in "$@"; do [ -s "$f" ] || { echo "MISSING INPUT: $f" >&2; exit 1; }; done; }
 

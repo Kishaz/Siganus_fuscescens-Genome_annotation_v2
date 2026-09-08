@@ -3,9 +3,9 @@
 # machine (laptop, workstation, WSL), then rsync the output to $DB/staged/.
 #
 #   ./scripts/mirror_fetch.sh /some/local/staging
-#   rsync -avP /some/local/staging/ cpu201:/projects/.../aigo_genome/db/staged/
+#   rsync -avP /some/local/staging/ <cluster>:/projects/.../aigo_genome/db/staged/
 #
-# Total payload ~6 GB, dominated by OrthoDB Vertebrata.
+# Payload ~14 GB, or ~25 GB with MIRROR_EGGNOG=1.
 set -euo pipefail
 DEST="${1:?usage: mirror_fetch.sh <staging-dir>}"
 mkdir -p "$DEST"; cd "$DEST"
@@ -111,12 +111,28 @@ if [ "${MIRROR_EGGNOG:-0}" = "1" ]; then
   done
 fi
 
+# micro.mamba.pm is blocked by some site proxies (DISCOVERY: 403 after CONNECT),
+# so the 18 MB static binary is staged too. 00_setup falls back to a site conda
+# if it is absent, but shipping it keeps the environment independent of whatever
+# anaconda build the cluster happens to provide.
+echo "[mirror] micromamba (18 MB)"
+if [ ! -s micromamba ]; then
+  if curl -fsSL --retry 5 --max-time 300 \
+       https://micro.mamba.pm/api/micromamba/linux-64/latest -o mm.tar.bz2; then
+    tar -xjf mm.tar.bz2 -O bin/micromamba > micromamba
+    chmod +x micromamba
+    rm -f mm.tar.bz2
+  else
+    echo "  WARN: could not fetch micromamba"
+  fi
+fi
+
 echo "[mirror] writing transfer manifest"
-md5sum ./*.gz ./*.tsv ./*.clanin ./*.version eggnog/* 2>/dev/null > MANIFEST.md5 || true
+md5sum ./*.gz ./*.tsv ./*.clanin ./*.version micromamba eggnog/* 2>/dev/null > MANIFEST.md5 || true
 
 echo; echo "[mirror] staged payload:"; du -sh .; ls -la
 cat <<TXT
 
 Next:
-  rsync -avP --partial "$DEST"/ <user>@cpu201:/projects/yates_lab_hpc/sam/smwambu1/aigo_genome/db/staged/
+  rsync -avP --partial "$DEST"/ <user>@<cluster>:/path/to/aigo_genome/scratch/db/staged/
 TXT

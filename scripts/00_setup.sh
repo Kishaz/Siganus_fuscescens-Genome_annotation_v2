@@ -7,27 +7,83 @@ source ./config.sh
 
 mkdir -p "$PROJ/bin" "$MAMBA_ROOT_PREFIX" "$SIF_DIR" "$REPO/docs/provenance"
 
-# ---- micromamba -------------------------------------------------------------
-# A static binary in project space: no root, and independent of the site
-# anaconda install (whose `defaults` channel carries licensing conditions we
-# have no reason to accept for a public pipeline).
-if [ ! -x "$MICROMAMBA_BIN" ]; then
-  echo "[00] installing micromamba -> $MICROMAMBA_BIN"
-  curl -sSL --retry 5 https://micro.mamba.pm/api/micromamba/linux-64/latest \
-    | tar -xj -C "$PROJ" bin/micromamba
-  chmod +x "$MICROMAMBA_BIN"
+# ---- pick a package manager -------------------------------------------------
+# Preference order:
+#   1. micromamba already installed
+#   2. micromamba staged by mirror_fetch.sh (18 MB) - micro.mamba.pm is blocked
+#      by some site proxies, DISCOVERY among them (403 after CONNECT)
+#   3. download micromamba, if that host happens to be reachable
+#   4. a site conda/mamba
+BACKEND=""
+if [ -x "$MICROMAMBA_BIN" ]; then
+  BACKEND=micromamba
+elif [ -x "$STAGED/micromamba" ]; then
+  echo "[00] using staged micromamba"
+  mkdir -p "$(dirname "$MICROMAMBA_BIN")"
+  cp "$STAGED/micromamba" "$MICROMAMBA_BIN" && chmod +x "$MICROMAMBA_BIN"
+  BACKEND=micromamba
+elif curl -sSfL --max-time 60 https://micro.mamba.pm/api/micromamba/linux-64/latest \
+       -o /tmp/mm.$$.tar.bz2 2>/dev/null; then
+  echo "[00] downloading micromamba"
+  mkdir -p "$(dirname "$MICROMAMBA_BIN")"
+  tar -xjf /tmp/mm.$$.tar.bz2 -O bin/micromamba > "$MICROMAMBA_BIN"
+  chmod +x "$MICROMAMBA_BIN"; rm -f /tmp/mm.$$.tar.bz2
+  BACKEND=micromamba
+else
+  # Try to surface a site conda via Lmod. On DISCOVERY the anaconda3 module is
+  # hidden behind `shared`, so a bare `module load anaconda3` fails.
+  if ! command -v conda >/dev/null 2>&1 && command -v module >/dev/null 2>&1; then
+    for spec in "shared anaconda3/2023.09" "shared anaconda3" "anaconda3" "anaconda" "miniconda3"; do
+      # shellcheck disable=SC1090
+      module load $spec >/dev/null 2>&1 && command -v conda >/dev/null 2>&1 && {
+        echo "[00] module load $spec"; break; }
+    done
+  fi
 fi
-"$MICROMAMBA_BIN" --version
+
+if [ -z "$BACKEND" ]; then
+  if command -v mamba >/dev/null 2>&1 || command -v conda >/dev/null 2>&1; then
+    echo "[00] micro.mamba.pm unreachable - using the site conda"
+    BACKEND=conda
+  fi
+fi
+
+if [ -z "$BACKEND" ]; then
+  cat >&2 <<'TXT'
+[00] FATAL: no package manager available.
+     micro.mamba.pm is unreachable and no conda is on PATH. Either:
+       - module load anaconda   (or whatever your site calls it), or
+       - stage the binary:  scripts/mirror_fetch.sh <dir>  then rsync
+         <dir>/micromamba into $STAGED/
+TXT
+  exit 1
+fi
+echo "[00] backend: $BACKEND"
+[ "$BACKEND" = micromamba ] && "$MICROMAMBA_BIN" --version
 
 # ---- environments -----------------------------------------------------------
+# Channels come from the yaml files only. --override-channels keeps the
+# Anaconda `defaults` channel out of the solve: its terms are a poor fit for a
+# public pipeline, and mixing it with conda-forge/bioconda causes solver churn.
+SOLVER="$(command -v mamba || command -v conda || true)"
 for y in env/*.yaml; do
   n="$(basename "$y" .yaml)"
-  if "$MICROMAMBA_BIN" env list -r "$MAMBA_ROOT_PREFIX" 2>/dev/null \
-       | awk '{print $1}' | grep -qx "$n"; then
+  envdir="$MAMBA_ROOT_PREFIX/envs/$n"
+  if [ -d "$envdir" ]; then
     echo "[00] env '$n' exists - skipping"
-  else
-    echo "[00] creating env '$n'"
+    continue
+  fi
+  echo "[00] creating env '$n'"
+  if [ "$BACKEND" = micromamba ]; then
     "$MICROMAMBA_BIN" create -y -r "$MAMBA_ROOT_PREFIX" -f "$y"
+  else
+    # conda refuses a yaml carrying `name:` when -p is given, so strip it.
+    tmpy="$(mktemp)"; grep -v '^name:' "$y" > "$tmpy"
+    "$SOLVER" env create -q -p "$envdir" -f "$tmpy" \
+      || "$SOLVER" create -y -q -p "$envdir" --override-channels \
+           -c conda-forge -c bioconda \
+           $(awk '/^dependencies:/{f=1;next} f&&/^ *- /{sub(/^ *- /,"");printf "%s ",$0}' "$y")
+    rm -f "$tmpy"
   fi
 done
 
