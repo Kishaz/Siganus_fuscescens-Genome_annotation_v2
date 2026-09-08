@@ -98,8 +98,21 @@ if [ "${SKIP_INTERPROSCAN:-0}" != "1" ]; then
   fi
 fi
 
+# eggNOG: the emapper database lives on eggnog5.embl.de, NOT eggnog6 - the
+# latter answers (403 on its listing) but serves no emapperdb, which makes a
+# naive reachability check on eggnog6 misleading. Only fetched when
+# MIRROR_EGGNOG=1, since it is ~11 GB and many clusters can reach it directly.
+if [ "${MIRROR_EGGNOG:-0}" = "1" ]; then
+  echo "[mirror] eggNOG emapperdb-5.0.2 (~11.2 GB)"
+  EGG="http://eggnog5.embl.de/download/emapperdb-5.0.2"
+  mkdir -p eggnog
+  for f in eggnog.db.gz eggnog_proteins.dmnd.gz eggnog.taxa.tar.gz; do
+    get "$EGG/$f" "eggnog/$f"
+  done
+fi
+
 echo "[mirror] writing transfer manifest"
-md5sum ./*.gz ./*.tsv ./*.clanin ./*.version 2>/dev/null > MANIFEST.md5 || true
+md5sum ./*.gz ./*.tsv ./*.clanin ./*.version eggnog/* 2>/dev/null > MANIFEST.md5 || true
 
 echo; echo "[mirror] staged payload:"; du -sh .; ls -la
 cat <<TXT

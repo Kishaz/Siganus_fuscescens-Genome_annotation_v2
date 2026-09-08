@@ -114,9 +114,25 @@ fi
 # ---- 7. eggNOG database (~50 GB) -------------------------------------------
 if [ "${SKIP_EGGNOG:-0}" != "1" ] && [ ! -s "$DB/eggnog/eggnog.db" ]; then
   mkdir -p "$DB/eggnog"
-  echo "[03] eggNOG database (~50 GB)"
-  mm func download_eggnog_data.py -y --data_dir "$DB/eggnog" \
-    || echo "[03] WARNING: eggNOG download failed - stage 12 will skip GO/KEGG" >&2
+  # Prefer a mirrored copy. The emapper database is served from
+  # eggnog5.embl.de - eggnog6 answers but hosts no emapperdb, so a reachability
+  # check against eggnog6 tells you nothing useful.
+  staged_egg=0
+  for f in eggnog.db.gz eggnog_proteins.dmnd.gz eggnog.taxa.tar.gz; do
+    [ -s "$STAGED/eggnog/$f" ] && { cp -n "$STAGED/eggnog/$f" "$DB/eggnog/"; staged_egg=1; }
+  done
+  if [ "$staged_egg" = 1 ]; then
+    echo "[03] unpacking staged eggNOG database"
+    ( cd "$DB/eggnog"
+      [ -s eggnog.db ]             || gzip -dk eggnog.db.gz
+      [ -s eggnog_proteins.dmnd ]  || gzip -dk eggnog_proteins.dmnd.gz
+      [ -d taxa ] || tar -xzf eggnog.taxa.tar.gz 2>/dev/null || true )
+  else
+    echo "[03] eggNOG database (~11 GB from eggnog5.embl.de)"
+    mm func download_eggnog_data.py -y --data_dir "$DB/eggnog" \
+      || { echo "[03] WARNING: eggNOG download failed - stage 12 loses GO/KEGG." >&2
+           echo "     Mirror it with MIRROR_EGGNOG=1 scripts/mirror_fetch.sh" >&2; }
+  fi
 fi
 
 echo "[03] evidence summary"; du -sh "$DB"/* "$WORK/rnaseq/raw" 2>/dev/null
