@@ -89,9 +89,18 @@ Verified during development:
 - Slurm cluster, Linux x86-64
 - `apptainer` or `singularity` (BRAKER3 and Helixer both run from containers)
 - One GPU for stage 07 (optional — set `USE_HELIXER=0` to skip)
-- Outbound HTTPS from the login node
-- ~500 GB scratch, ~150 GB databases
+- Outbound HTTPS from the login node — see *Firewalled clusters* below if partial
+- ~350 GB of working space: ~150 GB databases, ~150 GB intermediates
 - No root: everything installs into the project directory via micromamba
+
+Storage is split into two tiers. `SCRATCH` holds regenerable work and databases
+and is auto-detected — a candidate must be writable, have ≥350 GB free, and not
+be tmpfs, since siting intermediates on a RAM-backed filesystem exhausts node
+memory. `PROJ` holds the release, logs and checkpoints. Because scratch is
+typically purgeable, expensive artefacts (the softmasked genome, curated repeat
+library, and the raw predictions) are checkpointed to `PROJ` as they are
+produced, and every consuming stage restores from there if scratch has been
+cleared — so a purge costs a copy rather than a rerun.
 
 ## Quick start
 
@@ -104,19 +113,33 @@ bash tests/test_filter.sh && bash tests/test_utr_ids.sh && bash tests/test_relea
 
 ./scripts/00_setup.sh              # envs + containers (~1-2 h)
 ./scripts/01_prepare_genome.sh     # fetch and verify the assembly
+./scripts/03_fetch_evidence.sh     # databases + RNA-seq (login node)
+
+./scripts/preflight.sh             # verify everything BEFORE queuing days of work
 DRYRUN=1 ./scripts/run_all.sh      # inspect the submission plan
 ./scripts/run_all.sh               # submit the DAG
 ```
 
-If your firewall blocks `dfam.org`, `data.orthodb.org` or
-`bioinf.uni-greifswald.de` — mine does — stage them elsewhere (~6.7 GB):
+### Firewalled clusters
+
+Many HPC systems allowlist only a few external hosts. On the cluster this was
+developed against, the reachable set is NCBI, Anaconda, Docker Hub and eggNOG —
+while `dfam.org`, `data.orthodb.org`, `bioinf.uni-greifswald.de`,
+`busco-data.ezlab.org` and **`ftp.ebi.ac.uk`** all fail to connect, from login
+*and* compute nodes alike. EBI being blocked matters most, because InterProScan,
+Swiss-Prot and Rfam live there and have no alternative source.
+
+Mirror them from any machine with a working connection (~13.5 GB total):
 
 ```bash
 ./scripts/mirror_fetch.sh /tmp/staging
 rsync -avP /tmp/staging/ user@cluster:/path/to/aigo_genome/db/staged/
 ```
 
-`03_fetch_evidence.sh` prefers `db/staged/` over downloading.
+`03_fetch_evidence.sh` prefers `db/staged/` over downloading, and `preflight.sh`
+reports exactly which databases are present and what each missing one costs.
+
+No compute stage performs network I/O; all fetching happens on the login node.
 
 ## Stages
 
