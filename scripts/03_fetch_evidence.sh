@@ -85,26 +85,29 @@ get "https://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.clanin"    "$DB/rfam/
 # The bioconda build is pinned to 5.59_91.0 (2022) with correspondingly stale
 # member databases, so the current release comes straight from EBI. Login node
 # only - stage 12 runs on a compute node and cannot reach ftp.ebi.ac.uk.
-if [ "${SKIP_INTERPROSCAN:-0}" != "1" ] && [ -z "$(ls -d "$DB"/interproscan-* 2>/dev/null)" ]; then
-  IPR_VER="$(curl -fsSL --max-time 30 https://ftp.ebi.ac.uk/pub/software/unix/iprscan/5/ 2>/dev/null \
-             | grep -oE '5\.[0-9]+-[0-9]+\.0' | sort -uV | tail -1)"
-  if [ -n "$IPR_VER" ]; then
-    echo "[03] InterProScan $IPR_VER (~50 GB - this takes a while)"
-    B="https://ftp.ebi.ac.uk/pub/software/unix/iprscan/5/${IPR_VER}"
-    get "$B/interproscan-${IPR_VER}-64-bit.tar.gz"     "$DB/interproscan.tar.gz"
-    get "$B/interproscan-${IPR_VER}-64-bit.tar.gz.md5" "$DB/interproscan.tar.gz.md5"
-    ( cd "$DB"
-      if [ -s interproscan.tar.gz.md5 ]; then
-        want=$(awk '{print $1}' interproscan.tar.gz.md5)
-        got=$(md5sum interproscan.tar.gz | awk '{print $1}')
-        [ "$want" = "$got" ] || { echo "[03] FATAL: InterProScan md5 mismatch" >&2; exit 1; }
-        echo "[03] InterProScan md5 OK"
-      fi
-      tar -xzf interproscan.tar.gz
-      cd "interproscan-${IPR_VER}" && python3 setup.py -f interproscan.properties ) \
+# ftp.ebi.ac.uk is unreachable from this cluster (login AND compute), so unlike
+# the other databases there is no download fallback: the tarball must have been
+# staged by scripts/mirror_fetch.sh and rsynced into $STAGED.
+if [ "${SKIP_INTERPROSCAN:-0}" != "1" ] && [ -z "$(ls -d "$DB"/interproscan-5* 2>/dev/null)" ]; then
+  IPR_TGZ="$(ls "$STAGED"/interproscan-*-64-bit.tar.gz 2>/dev/null | tail -1)"
+  if [ -n "$IPR_TGZ" ]; then
+    IPR_VER="$(basename "$IPR_TGZ" | sed -E 's/interproscan-(.*)-64-bit\.tar\.gz/\1/')"
+    echo "[03] unpacking staged InterProScan $IPR_VER (~50 GB unpacked)"
+    if [ -s "${IPR_TGZ}.md5" ]; then
+      want=$(awk '{print $1}' "${IPR_TGZ}.md5")
+      got=$(md5sum "$IPR_TGZ" | awk '{print $1}')
+      [ "$want" = "$got" ] || { echo "[03] FATAL: InterProScan md5 mismatch" >&2; exit 1; }
+      echo "[03] InterProScan md5 OK"
+    fi
+    ( cd "$DB" && tar -xzf "$IPR_TGZ" \
+      && cd "interproscan-${IPR_VER}" \
+      && python3 setup.py -f interproscan.properties ) \
       || echo "[03] WARNING: InterProScan setup failed - stage 12 will skip domains" >&2
   else
-    echo "[03] WARNING: could not reach EBI to resolve an InterProScan version" >&2
+    echo "[03] NOTE: no InterProScan tarball in $STAGED." >&2
+    echo "     ftp.ebi.ac.uk is firewalled here, so it cannot be fetched." >&2
+    echo "     Run scripts/mirror_fetch.sh elsewhere and rsync it in," >&2
+    echo "     or set SKIP_INTERPROSCAN=1 to run without protein domains." >&2
   fi
 fi
 

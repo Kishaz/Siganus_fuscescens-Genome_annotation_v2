@@ -71,6 +71,36 @@ echo "[mirror] Rfam covariance models"
 get "$RFAM_BASE/Rfam.cm.gz"  Rfam.cm.gz
 get "$RFAM_BASE/Rfam.clanin" Rfam.clanin
 
+echo "[mirror] Swiss-Prot (~90 MB)"
+get "https://ftp.ebi.ac.uk/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz" \
+    uniprot_sprot.fasta.gz
+
+# InterProScan is ~6.6 GB as a tarball (~50 GB unpacked). ftp.ebi.ac.uk is
+# blocked from the cluster login node as well as from compute nodes, so unlike
+# everything else here there is no fallback path - it must be mirrored.
+if [ "${SKIP_INTERPROSCAN:-0}" != "1" ]; then
+  IPR_VER="$(curl -fsSL --max-time 30 https://ftp.ebi.ac.uk/pub/software/unix/iprscan/5/ 2>/dev/null \
+             | grep -oE '5\.[0-9]+-[0-9]+\.0' | sort -uV | tail -1)"
+  if [ -n "$IPR_VER" ]; then
+    echo "[mirror] InterProScan $IPR_VER (~6.6 GB)"
+    B="https://ftp.ebi.ac.uk/pub/software/unix/iprscan/5/${IPR_VER}"
+    get "$B/interproscan-${IPR_VER}-64-bit.tar.gz"     "interproscan-${IPR_VER}-64-bit.tar.gz"
+    get "$B/interproscan-${IPR_VER}-64-bit.tar.gz.md5" "interproscan-${IPR_VER}-64-bit.tar.gz.md5"
+    if [ -s "interproscan-${IPR_VER}-64-bit.tar.gz.md5" ]; then
+      want=$(awk '{print $1}' "interproscan-${IPR_VER}-64-bit.tar.gz.md5")
+      got=$(md5sum "interproscan-${IPR_VER}-64-bit.tar.gz" | awk '{print $1}')
+      if [ "$want" = "$got" ]; then echo "  md5 OK   interproscan-${IPR_VER}"
+      else echo "  WARN: md5 mismatch on interproscan-${IPR_VER}"; fi
+    fi
+    echo "$IPR_VER" > interproscan.version
+  else
+    echo "  WARN: could not reach EBI to resolve an InterProScan version"
+  fi
+fi
+
+echo "[mirror] writing transfer manifest"
+md5sum ./*.gz ./*.tsv ./*.clanin ./*.version 2>/dev/null > MANIFEST.md5 || true
+
 echo; echo "[mirror] staged payload:"; du -sh .; ls -la
 cat <<TXT
 

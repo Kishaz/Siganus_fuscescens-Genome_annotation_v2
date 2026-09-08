@@ -20,9 +20,27 @@
 set -euo pipefail
 cd "${REPO:?}"; source ./config.sh
 
-G="$WORK/genome/genome.fna"; need "$G"
 T="${SLURM_CPUS_PER_TASK:-$THREADS_BIG}"
-R="$WORK/repeats"; OUT="$R/final"; mkdir -p "$R" "$OUT"
+R="$WORK/repeats"; OUT="$R/final"; mkdir -p "$R" "$OUT" "$WORK/genome"
+
+# Scratch may have been purged between submission and start, or between a
+# failed attempt and a resubmission. Pull anything durable back first.
+restore_checkpoint "$WORK/genome" genome.fna
+restore_checkpoint "$OUT" genome.softmasked.fna
+restore_checkpoint "$R" "${SPECIES}-families.curated.fa"
+
+G="$WORK/genome/genome.fna"
+if [ ! -s "$G" ]; then
+  echo "FATAL: $G missing and no checkpoint available." >&2
+  echo "       Re-run scripts/01_prepare_genome.sh on the login node." >&2
+  exit 1
+fi
+
+# A completed mask is days of compute; never redo it just because scratch moved.
+if [ -s "$OUT/genome.softmasked.fna" ] && have_stamp 02_repeats; then
+  echo "[02] softmasked genome already present - nothing to do"
+  exit 0
+fi
 
 # Dfam 4.0 has to be visible to RepeatMasker before either route runs.
 if [ -s "$DB/dfam/dfam40.0.h5" ]; then
@@ -136,6 +154,15 @@ awk -v p="$PCT" 'BEGIN{
   if (p+0 < 12) print "WARNING: only " p "% masked - well below the 21.15% NCBI anchor; a pass may have failed";
   else if (p+0 > 35) print "WARNING: " p "% masked - well above the NCBI anchor; check for over-masking";
   else print "softmask " p "% - consistent with the NCBI anchor" }'
+
+# Days of compute - copy to durable storage before the job exits.
+checkpoint \
+  "$OUT/genome.softmasked.fna" \
+  "$OUT/${ASM_NAME}.repeats.gff3" \
+  "$OUT/repeat_summary.tsv" \
+  "$OUT/full_mask.out" \
+  "$R/${SPECIES}-families.curated.fa" \
+  "$R/${SPECIES}-families.fa"
 
 done_stamp 02_repeats
 echo "[02] done -> $OUT"

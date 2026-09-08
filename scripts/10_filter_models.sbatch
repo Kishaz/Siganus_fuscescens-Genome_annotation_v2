@@ -22,6 +22,7 @@
 set -euo pipefail
 cd "${REPO:?}"; source ./config.sh
 
+restore_checkpoint "$WORK/repeats/final" genome.softmasked.fna
 GM="$WORK/repeats/final/genome.softmasked.fna"
 # v2 input is the TSEBRA-consolidated BRAKER3 + Helixer set, not BRAKER alone.
 RAW="$WORK/combined/combined.gff3"

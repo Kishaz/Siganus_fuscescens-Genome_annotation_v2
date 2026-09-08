@@ -4,11 +4,12 @@
 #SBATCH --mem=64G
 #SBATCH --time=1-00:00:00
 #SBATCH --nodes=1
-# Stage 13 - non-coding RNA. The 2024 release shipped none (14-tRNA-scan.sh was
+# Stage 11 - non-coding RNA. The 2024 release shipped none (14-tRNA-scan.sh was
 # an empty file), so this is new content rather than a refinement.
 set -euo pipefail
 cd "${REPO:?}"; source ./config.sh
 
+restore_checkpoint "$WORK/repeats/final" genome.softmasked.fna
 GM="$WORK/repeats/final/genome.softmasked.fna"; need "$GM"
 T="${SLURM_CPUS_PER_TASK:-32}"
 N="$WORK/ncrna"; mkdir -p "$N"; cd "$N"

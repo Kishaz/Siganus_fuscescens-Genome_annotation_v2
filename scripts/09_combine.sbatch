@@ -25,6 +25,7 @@ C="$WORK/combined"; mkdir -p "$C"; cd "$C"
 if [ "${USE_HELIXER:-1}" != "1" ] || [ ! -s "$HLX" ]; then
   echo "[09] no Helixer input - passing BRAKER3 through unchanged"
   cp "$BRK" combined.gff3
+  checkpoint "$C/combined.gff3"
   done_stamp 09_combine
   echo "[09] done -> $C/combined.gff3"
   exit 0
@@ -65,6 +66,8 @@ printf '[09] genes: BRAKER3 %s | Helixer %s | combined %s\n' "$b" "$h" "$c"
 # what Helixer added rather than leaving the merge as a black box.
 mm annot gffcompare -r "$BRK" -o vs_braker combined.gff3 >/dev/null 2>&1 || true
 [ -s vs_braker.stats ] && sed -n '1,25p' vs_braker.stats
+
+checkpoint "$C/combined.gff3"
 
 done_stamp 09_combine
 echo "[09] done -> $C/combined.gff3"

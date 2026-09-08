@@ -15,14 +15,59 @@ export PART_GPU="${PART_GPU:-gpuh100}"      # 4x H100, 128 cores - Helixer
 export MAIL_USER="${MAIL_USER:-}"           # blank = no mail
 
 # --- Paths ------------------------------------------------------------------
+# Two tiers, deliberately:
+#   SCRATCH  big, fast, PURGEABLE - intermediates and reference databases
+#   PROJ     durable, quota'd     - the repo, logs, checkpoints, the release
+# Nothing irreplaceable is allowed to live only on scratch. Stage 02 alone is
+# 3-7 days of compute, so its outputs are checkpointed to PROJ as they appear.
 export PROJ="${PROJ:-/projects/yates_lab_hpc/sam/smwambu1/aigo_genome}"
-export WORK="$PROJ/work"          # intermediates (large, purgeable)
-export DB="$PROJ/db"              # reference databases (large, reusable)
-export REL="$PROJ/release"        # final deliverables
-export LOGS="$PROJ/logs"
+
+# SCRATCH is auto-detected rather than assumed. On DISCOVERY as of 2026-09,
+# /scratch is 100% full cluster-wide (mkdir returns ENOSPC), so the pipeline
+# must not simply trust that it exists. Set SCRATCH explicitly to override.
+#
+# Needs ~300 GB: ~150 GB databases, ~150 GB intermediates.
+: "${SCRATCH_MIN_GB:=350}"
+if [ -z "${SCRATCH:-}" ]; then
+  for cand in "/scratch/$USER/aigo_genome" "/lscratch/$USER/aigo_genome"; do
+    mkdir -p "$cand" 2>/dev/null || continue
+    # Never site 300 GB of intermediates on a RAM-backed filesystem: on this
+    # cluster the compute-node root is tmpfs, and filling it exhausts node
+    # memory rather than disk.
+    fstype=$(df -PT "$cand" 2>/dev/null | tail -1 | awk '{print $2}')
+    case "$fstype" in
+      tmpfs|ramfs|devtmpfs)
+        echo "NOTE: skipping $cand - it is $fstype (RAM-backed)." >&2
+        rmdir "$cand" 2>/dev/null || true; continue ;;
+    esac
+    avail_gb=$(df -BG --output=avail "$cand" 2>/dev/null | tail -1 | tr -dc '0-9')
+    if [ -n "$avail_gb" ] && [ "$avail_gb" -ge "$SCRATCH_MIN_GB" ]; then
+      SCRATCH="$cand"; break
+    fi
+    rmdir "$cand" 2>/dev/null || true
+  done
+fi
+if [ -z "${SCRATCH:-}" ]; then
+  SCRATCH="$PROJ/scratch"
+  mkdir -p "$SCRATCH" 2>/dev/null || true
+  if [ "${SCRATCH_WARNED:-0}" != "1" ]; then
+    echo "NOTE: no scratch filesystem with >=${SCRATCH_MIN_GB} GB free." >&2
+    echo "      Using $SCRATCH on /projects, which counts against the group" >&2
+    echo "      quota. Set SCRATCH=... in config.sh once /scratch has room." >&2
+    export SCRATCH_WARNED=1
+  fi
+fi
+export SCRATCH
+
+export WORK="$SCRATCH/work"       # intermediates (large, regenerable)
+export DB="$SCRATCH/db"           # reference databases (large, re-downloadable)
+export STAGED="$DB/staged"        # firewall-blocked downloads, rsynced in
+
+export REL="$PROJ/release"        # final deliverables - durable
+export LOGS="$PROJ/logs"          # durable, so a failure is diagnosable later
+export CKPT="$PROJ/checkpoints"   # expensive intermediates, survive a purge
 export REPO="${REPO:-$PROJ/Siganus_fuscescens-Genome_annotation_v2}"
 export LIB="$REPO/lib"
-export STAGED="$DB/staged"        # firewall-blocked downloads, rsynced in
 
 # Node-local fast scratch; falls back to $WORK/tmp.
 export FASTTMP="${SLURM_TMPDIR:-${TMPDIR:-$WORK/tmp}}"
@@ -99,8 +144,34 @@ mm() {  # run a command inside a micromamba env:  mm <env> <cmd...>
   "$MICROMAMBA_BIN" run -r "$MAMBA_ROOT_PREFIX" -n "$1" "${@:2}"
 }
 need() { for f in "$@"; do [ -s "$f" ] || { echo "MISSING INPUT: $f" >&2; exit 1; }; done; }
+
+# Stamps live beside the data they describe. If scratch is purged the stamps go
+# with it, so a rerun correctly redoes the work rather than trusting a stale
+# marker for files that no longer exist.
 done_stamp() { mkdir -p "$WORK/.stamps"; touch "$WORK/.stamps/$1"; }
 have_stamp() { [ -f "$WORK/.stamps/$1" ]; }
-export -f mm need done_stamp have_stamp
 
-mkdir -p "$WORK" "$DB" "$REL" "$LOGS" "$SIF_DIR" "$WORK/tmp" "$STAGED" 2>/dev/null || true
+# checkpoint <file> [<file>...] - copy an expensive artefact to durable storage.
+# Used for anything that costs more to regenerate than to store: the curated
+# repeat library, the softmasked genome, raw predictions.
+checkpoint() {
+  mkdir -p "$CKPT"
+  local f
+  for f in "$@"; do
+    [ -s "$f" ] || continue
+    if [ ! -e "$CKPT/$(basename "$f")" ] || [ "$f" -nt "$CKPT/$(basename "$f")" ]; then
+      cp -a "$f" "$CKPT/" && echo "  checkpointed $(basename "$f") -> $CKPT"
+    fi
+  done
+}
+
+# restore_checkpoint <dest-dir> <file> - bring one back after a scratch purge.
+restore_checkpoint() {
+  local dest="$1" f="$2"
+  if [ ! -s "$dest/$f" ] && [ -s "$CKPT/$f" ]; then
+    mkdir -p "$dest" && cp -a "$CKPT/$f" "$dest/" && echo "  restored $f from checkpoint"
+  fi
+}
+export -f mm need done_stamp have_stamp checkpoint restore_checkpoint
+
+mkdir -p "$WORK" "$DB" "$REL" "$LOGS" "$CKPT" "$SIF_DIR" "$WORK/tmp" "$STAGED" 2>/dev/null || true

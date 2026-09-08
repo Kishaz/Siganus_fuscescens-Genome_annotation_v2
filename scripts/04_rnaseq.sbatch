@@ -12,6 +12,7 @@
 set -euo pipefail
 cd "${REPO:?}"; source ./config.sh
 
+restore_checkpoint "$WORK/repeats/final" genome.softmasked.fna
 GM="$WORK/repeats/final/genome.softmasked.fna"; need "$GM"
 T="${SLURM_CPUS_PER_TASK:-32}"
 RAW="$WORK/rnaseq/raw"; QC="$WORK/rnaseq/trimmed"; AL="$WORK/rnaseq/align"

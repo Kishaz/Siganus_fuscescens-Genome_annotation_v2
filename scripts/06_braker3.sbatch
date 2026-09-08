@@ -12,6 +12,7 @@
 set -euo pipefail
 cd "${REPO:?}"; source ./config.sh
 
+restore_checkpoint "$WORK/repeats/final" genome.softmasked.fna
 GM="$WORK/repeats/final/genome.softmasked.fna"
 PROT="$WORK/evidence/proteins.fa"
 need "$GM" "$PROT"
@@ -60,6 +61,8 @@ SPP="${SPECIES}_${ANNOT_VERSION//./_}"
 need "$B/run/braker.gff3"
 echo "[06] raw models: $(awk '$3=="gene"' "$B/run/braker.gff3" | wc -l) genes, "\
      "$(awk '$3=="mRNA"' "$B/run/braker.gff3" | wc -l) transcripts"
+
+checkpoint "$B/run/braker.gff3" "$B/run/hintsfile.gff"
 
 done_stamp 06_braker3
 echo "[06] done -> $B/run/braker.gff3"

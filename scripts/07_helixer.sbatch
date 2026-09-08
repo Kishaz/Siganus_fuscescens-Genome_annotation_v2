@@ -22,9 +22,12 @@ set -euo pipefail
 cd "${REPO:?}"; source ./config.sh
 
 if [ "${USE_HELIXER:-1}" != "1" ]; then
-  echo "[07] USE_HELIXER=0 - skipping"; done_stamp 07_helixer; exit 0
+  echo "[07] USE_HELIXER=0 - skipping"
+  done_stamp 07_helixer
+  exit 0
 fi
 
+restore_checkpoint "$WORK/repeats/final" genome.softmasked.fna
 GM="$WORK/repeats/final/genome.softmasked.fna"; need "$GM"
 H="$WORK/helixer"; mkdir -p "$H"
 SIF="$SIF_DIR/helixer.sif"
@@ -58,6 +61,8 @@ fi
 need "$H/helixer.gff3"
 echo "[07] Helixer models: $(awk -F'\t' '$3=="gene"' "$H/helixer.gff3" | wc -l) genes, "\
      "$(awk -F'\t' '$3=="mRNA"' "$H/helixer.gff3" | wc -l) transcripts"
+
+checkpoint "$H/helixer.gff3"
 
 done_stamp 07_helixer
 echo "[07] done -> $H/helixer.gff3"

@@ -4,12 +4,13 @@
 #SBATCH --mem=200G
 #SBATCH --time=2-00:00:00
 #SBATCH --nodes=1
-# Stage 14 - functional annotation. Entirely new: the 2024 release shipped no
+# Stage 12 - functional annotation. Entirely new: the 2024 release shipped no
 # GO terms, KEGG assignments, domains, or gene symbols.
 set -euo pipefail
 cd "${REPO:?}"; source ./config.sh
 
 GFF="$WORK/filter/${ASM_NAME}.annotation.${ANNOT_VERSION}.gff3"
+restore_checkpoint "$WORK/repeats/final" genome.softmasked.fna
 GM="$WORK/repeats/final/genome.softmasked.fna"
 need "$GFF" "$GM"
 T="${SLURM_CPUS_PER_TASK:-48}"

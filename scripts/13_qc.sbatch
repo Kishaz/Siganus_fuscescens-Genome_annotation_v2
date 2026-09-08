@@ -17,6 +17,7 @@ cd "${REPO:?}"; source ./config.sh
 
 GFF="$WORK/functional/${ASM_NAME}.annotation.${ANNOT_VERSION}.functional.gff3"
 [ -s "$GFF" ] || GFF="$WORK/filter/${ASM_NAME}.annotation.${ANNOT_VERSION}.gff3"
+restore_checkpoint "$WORK/repeats/final" genome.softmasked.fna
 GM="$WORK/repeats/final/genome.softmasked.fna"
 need "$GFF" "$GM"
 T="${SLURM_CPUS_PER_TASK:-32}"
